@@ -20,6 +20,7 @@ from rest_framework import routers
 from .views import UserViewSet, TeamViewSet, ActivityViewSet, WorkoutViewSet, LeaderboardViewSet
 from rest_framework.response import Response
 from rest_framework.decorators import api_view
+import os
 
 router = routers.DefaultRouter()
 router.register(r'users', UserViewSet)
@@ -30,16 +31,30 @@ router.register(r'leaderboard', LeaderboardViewSet)
 
 @api_view(['GET'])
 def api_root(request, format=None):
+    # Prefer building URLs from the CODESPACE_NAME environment variable to avoid
+    # certificate issues when the request host differs from the Codespace URL.
+    codespace = os.environ.get('CODESPACE_NAME')
+    if codespace:
+        base = f"https://{codespace}-8000.app.github.dev/api"
+    else:
+        # Fall back to request host/scheme when CODESPACE_NAME is not available.
+        # Use the /api prefix to match the router registration below.
+        scheme = 'https' if request.is_secure() else 'http'
+        host = request.get_host()
+        base = f"{scheme}://{host}/api"
+
     return Response({
-        'users': request.build_absolute_uri('/users/'),
-        'teams': request.build_absolute_uri('/teams/'),
-        'activities': request.build_absolute_uri('/activities/'),
-        'workouts': request.build_absolute_uri('/workouts/'),
-        'leaderboard': request.build_absolute_uri('/leaderboard/'),
+        'users': f"{base}/users/",
+        'teams': f"{base}/teams/",
+        'activities': f"{base}/activities/",
+        'workouts': f"{base}/workouts/",
+        'leaderboard': f"{base}/leaderboard/",
     })
 
 urlpatterns = [
     path('admin/', admin.site.urls),
-    path('', api_root, name='api-root'),
-    path('', include(router.urls)),
+    # Serve the API under the /api/ prefix so endpoints match
+    # https://$CODESPACE_NAME-8000.app.github.dev/api/<component>/
+    path('api/', api_root, name='api-root'),
+    path('api/', include(router.urls)),
 ]
